@@ -7,6 +7,8 @@
 #include <sstream>
 #include <cstdlib>
 #include <ctime>
+#include <conio.h>
+#include <windows.h>
 using namespace std;
 
 struct Record{
@@ -41,15 +43,22 @@ class Registration_list{
     }
     //Class methods
     string generate_Account_Num();
+    string inp_PIN();
     void add_record(Record x);
     bool is_Account_Num_taken(string acc_No); // Checks if account number is taken by previous inputs
     void display();
+    void save();
+    void retrieve();
 };
 
 //Other Functions kineme
 int menu();
 bool is_Numeric(string s);
+string inp_PIN();
+string encrypt_PIN(string pin);
+string decrypt_PIN(string pin);
 
+//Defined class functions outside
 string Registration_list::generate_Account_Num(){
     string acc_No;
     int num;
@@ -62,6 +71,7 @@ string Registration_list::generate_Account_Num(){
     while(is_Account_Num_taken(acc_No));
     return acc_No;
 }
+
 void Registration_list::add_record(Record x){
     Node* p;
     Node* q;
@@ -111,6 +121,54 @@ while(p!=NULL){
 system("pause");
 }
 
+void Registration_list::save(){
+    ofstream file("accounts.csv");
+    if(!file){
+        cout << "File error." << endl;
+        return;
+    }
+    else{
+        Node* p = head;
+        while(p != NULL){
+            file << p->data.account_number << ","
+            << p->data.account_name << ","
+            << p->data.birthday << ","
+            << p->data.contact_number << ","
+            << p->data.initial_deposit << ","
+            << p->data.pinCode << endl;
+            p = p->next;
+        }
+    }
+    file.close();
+}
+
+void Registration_list::retrieve(){
+    ifstream file("accounts.csv");
+    if(!file){
+        cout << "File error." << endl;
+        return;
+    }
+    else{
+        Record x; string line; string deposit;
+        while(getline(file, line)){
+            if(line.empty())
+                continue;
+            stringstream ss(line);
+            getline(ss, x.account_number, ',');
+            getline(ss, x.account_name, ',');
+            getline(ss, x.birthday, ',');
+            getline(ss, x.contact_number, ',');
+            getline(ss, deposit, ',');
+            x.initial_deposit = atof(deposit.c_str());
+            getline(ss, x.pinCode, ',');
+            add_record(x);
+            
+        }
+        file.close();
+    }
+}
+
+//Free functions definitions
 int menu(){
     int op;
     system("cls");
@@ -136,21 +194,92 @@ bool is_Numeric(string s){ //checks for letters/numbers inputs
     }
     return true;
 }
+string inp_PIN(){
+    string pin = "";
+    char ch;
+    cout << "Input your PIN code (4-6 digits): ";
+    while(true){
+        ch = getch(); 
+        if(ch == '\r'){
+            if(pin.length() >= 4){ //check if pin is inputted
+                break;
+            }
+        }
+        else if(isdigit(ch) && pin.length() < 6){ // if pin is too short;
+        pin += ch;
+        cout << '*';
+        if(pin.length() == 6){
+            break; // di na mag eenter, auto-submit na
+            }
+        }
+    }
+    cout << endl;
+    return pin;
+}
+
+int PIN_KEY = 7; // for encrpytion/decryption
+string encrypt_PIN(string pin){
+    string enc = pin;
+    for(int i=0; i<enc.length(); i++){
+        int digit = enc[i] - '0';
+        digit = (digit + PIN_KEY) % 10;
+        enc[i] = digit + '0';
+    }
+    return enc;
+}
+
+string decrypt_PIN(string pin){
+    string dec = pin;
+    for(int i=0; i<dec.length(); i++){
+        int digit = dec[i] - '0';
+        digit = (digit - PIN_KEY + 10) % 10;
+        dec[i] = digit + '0';
+    }
+    return dec;
+}
+
+string detect_Flash_drive(){
+    char drive[] = "A:\\";
+    char letter;
+    for(letter = 'A'; letter <= 'Z'; letter++){
+        drive[0] = letter; //starting index
+        UINT type = GetDriveTypeA(drive);
+        if(type == DRIVE_REMOVABLE){
+            string d = " ";
+            d += letter;
+            d += ":\\";
+            return d;
+        }
+    }
+    return "";
+}
+
+void write_ATM_card(string drive_Letter, string acc_No, string encrypted_Pin){
+    string path = drive_Letter + "pin.code";
+    ofstream card(path.c_str());
+        if(!card){
+            cout << "Error writing to flash drive!" << endl;
+            return;
+        }
+        card << acc_No << "," << encrypted_Pin << endl;
+        card.close();
+    }
+
+
 int main(){
     srand(time(NULL));
     Record r;
     Registration_list reg;
+    reg.retrieve();
     while(true){
         switch(menu()){
-            case 1:
+            case 1:{
             system("cls");
             cout<<"Registration Mode" << endl;
             // number validation - 5 digits exact, di pwede duplicate
-            do{
                 r.account_number = reg.generate_Account_Num();
                 cout << "Your assigned Account Number is: " << r.account_number << endl;
-            } 
-            while(true);
+           
                 cout << "Input Account name: "; cin.ignore(); getline(cin,r.account_name);
                 cout << "Input Birthday (MM/DD/YYYY): "; getline(cin,r.birthday);
                 cout << "Input Contact Number: "; getline(cin,r.contact_number);
@@ -171,17 +300,30 @@ int main(){
                     }
                 }
                     while(true);
-                    cout << "Input PIN Code: "; cin>>r.pinCode;
+                    r.pinCode = inp_PIN();
+                    r.pinCode = encrypt_PIN(r.pinCode);
+                    string drive;
+                    do{
+                        drive = detect_Flash_drive();
+                        if(drive == ""){
+                            cout << "Please insert card." << endl;
+                            system("pause");
+                        }
+
+                    }while(drive == "");
+                    write_ATM_card(drive, r.account_number, r.pinCode);
+                    cout << "ATM card written to drive " << drive << endl; 
                     reg.add_record(r);
                     cout << "\n Account Registered Succesfully. Welcome " << r.account_name << endl;
                     system("pause");
                     break;
-                    
+            }
             case 2:
             reg.display();
             break;
             case 3:
             cout << "Exiting program...\n";
+            reg.save();
             system("pause");
             exit(0);
             default:
@@ -191,4 +333,3 @@ int main(){
     
     return 0;
 }
-
