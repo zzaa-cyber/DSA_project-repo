@@ -1,0 +1,561 @@
+//Programmed by: Flores + Frigillana
+// Registration & Transaction Module
+#include <iostream>
+#include <string>
+#include <iomanip>
+#include <fstream>
+#include <sstream>
+#include <cstdlib>
+#include <ctime>
+#include <conio.h>
+#include <windows.h>
+#include <limits> //added
+using namespace std;
+
+struct Record{
+    string account_name;
+    string account_number; // 5 digits (better na string kesa int, cause di panget maglagay if 0 unang digits)
+    string birthday; //format: MM/DD/YYYY
+    string contact_number;
+    double initial_deposit; //minimum 5000
+    string pinCode;
+};
+
+struct Node{
+    Record data;
+    struct Node* next;
+    Node(Record x) { //edited
+        data = x;
+        next = NULL;
+    }
+};
+class Registration_list{
+    private:
+    Node* head;
+    public:
+    //constructor
+    Registration_list(): head(NULL){}
+    //destructor
+    ~Registration_list(){
+        Node* p;
+        while(head != NULL){
+            p = head;
+            head = head->next;
+            delete(p);
+        }
+    }
+    //Class methods
+    Node* find_Account(string account_number); //added
+    string generate_Account_Num();
+    void add_record(Record x);
+    bool is_Account_Num_taken(string acc_No); // Checks if account number is taken by previous inputs
+    void display();
+    void save();
+    void retrieve();
+};
+
+//Other Functions kineme
+int menu();
+bool is_Numeric(string s);
+string inp_PIN();
+string encrypt_PIN(string pin);
+string decrypt_PIN(string pin);
+//added these two
+bool read_ATM_card(string drive_Letter, string& acc_No, string& encrypted_Pin);
+
+//Defined class functions outside
+string Registration_list::generate_Account_Num(){
+    string acc_No;
+    int num;
+    do{
+        num = rand() % 100000; //0 to 99999
+        stringstream ss;
+        ss << setw(5) << setfill('0') << num; 
+        acc_No = ss.str();
+    }
+    while(is_Account_Num_taken(acc_No));
+    return acc_No;
+}
+
+void Registration_list::add_record(Record x){
+    Node* p;
+    Node* q;
+    Node* newNode;
+    p=q=head;
+    newNode = new Node(x);
+    while(p != NULL){
+        q=p;
+        p=p->next;
+    }
+    if(p == head){
+        head = newNode;
+    }
+    else{
+        q->next = newNode;
+    }
+    newNode->next = p;
+}
+bool Registration_list::is_Account_Num_taken(string acc_No){
+    Node* p;
+    p=head;
+    while(p != NULL){
+        if(p->data.account_number == acc_No){
+            return true;
+        }
+        p=p->next;
+    }
+    return false;
+}
+void Registration_list::display(){
+    Node *p;
+    p=head;
+    system("cls");
+    cout<<left<<setw(12)<<"Acc.No."
+    <<setw(20)<<"Name"
+    <<setw(12)<<"Birthday"
+    <<setw(15)<<"Contact"
+    <<setw(12)<<"Balance"<<endl;
+    while(p!=NULL){
+        cout<<left<<setw(12)<<p->data.account_number
+    <<setw(20)<<p->data.account_name
+    <<setw(12)<<p->data.birthday
+    <<setw(15)<<p->data.contact_number
+    <<setw(12)<<fixed<<setprecision(2)<<p->data.initial_deposit<<endl;
+        p=p->next;
+    }
+    system("pause");
+}
+
+void Registration_list::save(){
+    ofstream file("accounts.csv");
+    if(!file){
+        cout << "File error." << endl;
+        return;
+    }
+    else{
+        Node* p = head;
+        while(p != NULL){
+            file << p->data.account_number << ","
+            << p->data.account_name << ","
+            << p->data.birthday << ","
+            << p->data.contact_number << ","
+            << p->data.initial_deposit << ","
+            << p->data.pinCode << endl;
+            p = p->next;
+        }
+    }
+    file.close();
+}
+
+void Registration_list::retrieve(){
+    ifstream file("accounts.csv");
+    if(!file){
+        cout << "File error." << endl;
+        return;
+    }
+    else{
+        Record x; string line; string deposit;
+        while(getline(file, line)){
+            if(line.empty())
+                continue;
+            stringstream ss(line);
+            getline(ss, x.account_number, ',');
+            getline(ss, x.account_name, ',');
+            getline(ss, x.birthday, ',');
+            getline(ss, x.contact_number, ',');
+            getline(ss, deposit, ',');
+            x.initial_deposit = atof(deposit.c_str());
+            getline(ss, x.pinCode, ',');
+            add_record(x);
+            
+        }
+        file.close();
+    }
+}
+
+Node* Registration_list::find_Account(string account_number) { //added
+    Node* current = head;
+    while(current != NULL){
+        if(current->data.account_number == account_number){
+            return current;
+        }
+        current = current->next;
+    }
+    return NULL;
+}
+//Free functions definitions
+int menu(){
+    int op;
+    system("cls");
+    cout<<"MENU\n";
+    cout<<"[1]. Add Account\n";
+    cout<<"[2]. Display All\n";
+    cout<<"[3]. Make a Transaction\n";
+    cout<<"[4]. Exit\n";
+    cout<<"Select option [1-4]: ";
+    cin>>op;
+    if(cin.fail()){
+        cin.clear();
+        cin.ignore(1000,'\n');
+        op = 0;
+    }
+    return op;
+}
+
+bool is_Numeric(string s){ //checks for letters/numbers inputs
+    for(int i=0; i<s.length();i++){
+        if(!isdigit(s[i])){
+            return false;
+        }
+    }
+    return true;
+}
+string inp_PIN(){
+    string pin = "";
+    char ch;
+    cout << "Input your PIN code (4-6 digits): ";
+    while(true){
+        ch = getch(); 
+        if(ch == '\r'){
+            if(pin.length() >= 4){ //check if pin is inputted
+                break;
+            }
+        }
+        else if(isdigit(ch) && pin.length() < 6){ // if pin is too short;
+        pin += ch;
+        cout << '*';
+        if(pin.length() == 6){
+            break; // di na mag eenter, auto-submit na
+            }
+        }
+    }
+    cout << endl;
+    return pin;
+}
+
+int PIN_KEY = 7; // for encrpytion/decryption
+string encrypt_PIN(string pin){
+    string enc = pin;
+    for(int i=0; i<enc.length(); i++){
+        int digit = enc[i] - '0';
+        digit = (digit + PIN_KEY) % 10;
+        enc[i] = digit + '0';
+    }
+    return enc;
+}
+
+string decrypt_PIN(string pin){
+    string dec = pin;
+    for(int i=0; i<dec.length(); i++){
+        int digit = dec[i] - '0';
+        digit = (digit - PIN_KEY + 10) % 10;
+        dec[i] = digit + '0';
+    }
+    return dec;
+}
+
+string detect_Flash_drive(){
+    char drive[] = "A:\\";
+    char letter;
+    for(letter = 'A'; letter <= 'Z'; letter++){
+        drive[0] = letter; //starting index
+        UINT type = GetDriveTypeA(drive);
+        if(type == DRIVE_REMOVABLE){
+            string d = "";
+            d += letter;
+            d += ":\\";
+                return d;
+        }
+    }
+    return "";
+}
+
+string detect_ATM_card() {
+    char drive[] = "A:\\";
+    char letter;
+
+    for(letter = 'A'; letter <= 'Z'; letter++){
+        drive[0] = letter;
+
+        UINT type = GetDriveTypeA(drive);
+
+        if(type == DRIVE_REMOVABLE){
+            string d = "";
+            d += letter;
+            d += ":\\";
+
+            string path = d + "pin.code"; //edited: flash drive + filename
+            ifstream card(path.c_str()); //opens yung file 
+            if(card) {
+                card.close(); //closes yung file (pang check)kapag nakita na yung card
+                return d;
+            }
+        }
+    }
+    return "";
+}
+
+void write_ATM_card(string drive_Letter, string acc_No, string encrypted_Pin){
+    string path = drive_Letter + "pin.code";
+    ofstream card(path.c_str());
+        if(!card){
+            cout << "Error writing to flash drive!" << endl;
+            return;
+        }
+        card << acc_No << "," << encrypted_Pin << endl;
+        card.close();
+    }
+
+//Added until transaction
+bool read_ATM_card(string drive_Letter, string& acc_No, string& encrypted_Pin) {
+    string path = drive_Letter + "pin.code";
+    ifstream card(path.c_str());
+    if(!card) {
+        return false;
+    }
+    getline(card, acc_No, ',');
+    getline(card, encrypted_Pin);
+    card.close();
+    return true;
+}
+
+double enter_Amount() {
+    double amount;
+
+    while(true) {
+        cout << "Enter amount: ";
+        cin >> amount;
+
+        if (!cin.fail() && amount > 0) {
+            return amount;
+        }
+        cin.clear(); //Will remove yung error if hindi number ilalagay for the amount
+        cin.ignore(numeric_limits<streamsize> :: max(), '\n'); //Means "wrong input, tapon ko 'to." 
+        /*(numeric_limits<streamsize> :: max(), '\n') basically means to get yung biggest value 
+        that the streamsize can hold hanggang mag enter (kind of)*/
+        cout << "Invalid amount. Try again." << endl;
+    }
+}
+
+void currentBalance(Node* account) {
+    cout << fixed << setprecision(2);
+    cout << "Current Balance: " << account->data.initial_deposit << endl;
+    system("pause");
+    return;
+}
+
+void withdraw(Node* account) {
+    double amount = enter_Amount();
+    if (amount > account->data.initial_deposit){
+        cout << "Insufficient balance in your account." << endl;
+        system("pause");
+        return;
+    }
+    account->data.initial_deposit -=amount;
+    cout << "Withdrawal successful." << endl;
+    system("pause");
+    return;
+}
+
+void deposit (Node* account) {
+    double amount = enter_Amount();
+    account->data.initial_deposit += amount;
+    cout << "Deposit successful." << endl;
+    system("pause");
+    return;
+}
+
+void fund_Transfer(Node* sender, Registration_list& reg) {
+    string recipientNumber;
+    cout << "Send to:" << endl;
+    cout << "Enter account number: ";
+    cin >> recipientNumber;
+    Node* recipient = reg.find_Account(recipientNumber);
+
+    if (recipient == NULL) {
+        cout << "Recipient account does not exist." << endl;
+        system("pause");
+        return;
+    }
+    if (recipient == sender) {
+        cout << "You are transferring money into your own account. Transaction cancelled." << endl;
+        system("pause");
+        return;
+    }
+    double amount = enter_Amount();
+    if(amount > sender->data.initial_deposit) {
+        cout << "Insufficient balance in your account." << endl;
+        system("pause");
+        return;
+    }
+    sender->data.initial_deposit -= amount;
+    recipient->data.initial_deposit += amount;
+    cout << "Transfer from " << sender->data.account_number << " to " 
+    << recipient->data.account_number << " successful." << endl;
+}
+
+void changePIN (Node* account) {
+    string current_PIN;
+    string new_PIN;
+
+    cout << "Enter your current PIN: ";
+    cin >> current_PIN;
+
+    if (current_PIN != account->data.pinCode){
+        cout << "PIN does not match the account number." << endl;
+        system("pause");
+        return;
+    }
+    cout << "Enter new PIN: ";
+    cin >> new_PIN;
+    account->data.pinCode = new_PIN;
+    cout << "PIN changed successfully." << endl;
+    system("pause");
+}
+
+void transaction(Registration_list& reg) {
+    string drive;
+    string accountNumber;
+    string pin;
+    string encrypted_PIN;
+
+    drive = detect_ATM_card();
+    if(drive == "") {
+        cout << "No registered ATM card found." << endl;
+        system("pause");
+        return;
+    }
+
+    if(!read_ATM_card(drive, accountNumber, encrypted_PIN)) {
+        cout << "Unable to read ATM card." << endl;
+        system("pause");
+        return;
+    }
+    Node* account = reg.find_Account(accountNumber);
+    if(account == NULL) {
+        cout << "Valid ATM card for this aacount not detected." << endl;
+        system("pause");
+        return;
+    }
+
+    cout << "\nATM card detected!" << endl;
+    cout << "Account Number: " << accountNumber << endl;
+    // PIN verification
+    cout << "Enter PIN: ";
+    pin = inp_PIN();
+    pin = encrypt_PIN(pin);
+    if(pin != encrypted_PIN){
+        cout << "Incorrect PIN." << endl;
+        system("pause");
+        return;
+    }
+    cout << "\nLogin successful!" << endl;
+    
+    int choice;
+    do {
+    	system("cls");
+        cout << "=========== TRANSACTION MENU ===========" << endl;
+        cout << "   [1]. Balance Inquiry" << endl;
+        cout << "   [2]. Withdraw" << endl;
+        cout << "   [3]. Deposit" << endl;
+        cout << "   [4]. Fund transfer" << endl;
+        cout << "   [5]. Change PIN" << endl;
+        cout << "   [6]. Exit" << endl;
+        cout << " Enter choice [1-6]: ";
+        cin >> choice;
+
+        switch (choice) {
+            case 1:
+                currentBalance(account);
+                break;
+            case 2:
+                withdraw(account);
+                break;
+            case 3:
+                deposit(account);
+                break;
+            case 4:
+                fund_Transfer(account, reg);
+                break;
+            case 5:
+                changePIN(account);
+                break;
+            case 6:
+                cout << "Redirecting to main menu..." << endl;
+                break;
+            default:
+                cout << "Invalid option." << endl;
+                return;
+        }
+    } while (choice !=6);
+}
+int main(){
+    srand(time(NULL));
+    Record r;
+    Registration_list reg;
+    reg.retrieve();
+    while(true){
+        switch(menu()){
+            case 1:{
+            system("cls");
+            cout<<"Registration Mode" << endl;
+            // number validation - 5 digits exact, di pwede duplicate
+                r.account_number = reg.generate_Account_Num();
+                cout << "Your assigned Account Number is: " << r.account_number << endl;
+           
+                cout << "Input Account name: "; cin.ignore(); getline(cin,r.account_name);
+                cout << "Input Birthday (MM/DD/YYYY): "; getline(cin,r.birthday);
+                cout << "Input Contact Number: "; getline(cin,r.contact_number);
+                //Initial deposit checker - minimum is 5000
+                do{
+                    cout <<"Input Initial Deposit (Min. 5000): ";cin>>r.initial_deposit;
+                    if(cin.fail()){
+                        cin.clear();
+                        cin.ignore(1000,'\n');
+                        cout << "Invalid input. Please enter a number." << endl;
+                        continue;
+                    }
+                    if(r.initial_deposit < 5000){
+                        cout <<"Invalid amount. Minimum deposit is 5000." << endl;
+                    }
+                    else{
+                        break;
+                    }
+                }
+                    while(true);
+                    r.pinCode = inp_PIN();
+                    r.pinCode = encrypt_PIN(r.pinCode);
+                    string drive;
+                    do{
+                        drive = detect_Flash_drive();
+                        if(drive == ""){
+                            cout << "Please insert card." << endl;
+                            system("pause");
+                        }
+
+                    }while(drive == "");
+                    write_ATM_card(drive, r.account_number, r.pinCode);
+                    cout << "ATM card written to drive " << drive << endl; 
+                    reg.add_record(r);
+                    cout << "\n Account Registered Succesfully. Welcome " << r.account_name << endl;
+                    system("pause");
+                    break;
+            }
+            case 2:
+            reg.display();
+            break;
+            case 3:
+            transaction(reg);
+            break;
+            case 4:
+            cout << "Exiting program...\n";
+            reg.save();
+            system("pause");
+            exit(0);
+            default:
+            cout << "Input choices 1 to 4 only.\n"; system("pause");
+        }
+    }
+    
+    return 0;
+}
